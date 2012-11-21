@@ -1,0 +1,68 @@
+How to configure RAID
+
+nux에서 RAID 구성하기
+RAID란 간단하게 설명하면 두개 또는 그 이상의 디스크에 동일한 데이터를 저장하기 위한 방식을 의미한다.
+그 중에서도 여기서는 RAID 1에 대해 기술하고자 한다. RAID 1은 데이터를 하나 이상의 장치에 중복 저장하는 기술이다.
+서버의 데이터를 Mirroring을 통해 자동 백업 받기 위해 RAID 1를 사용한다.
+Linux에서는 mdadm 명령어를 이용해서 소프트웨어 방식의 레이드를 지원한다.
+
+mdadm의 간단한 사용법은 아래와 같다.
+
+mdadm 사용법
+mdadm mode <raiddevice> [option] <computer-devices>
+
+[option]
+-C : raid 장치를 만드는 옵션
+-l  : raid 레벌 지정
+-n : device 갯수 지정
+-S : raid 장치의 작동 중지
+-Q, -D : raid 정보 출력
+-A : 다시 raid를 묶어줄 때 사용 
+
+
+■ 파티션 생성, RAID용 ID로 변경
+1. fdisk 명령어를 통해 동일한 크기의 파티션 2개를 생성한다.
+- 설명의 편의상 생성한 파티션의 이름을 sda1, sda2으로 지정한다.)
+
+2. RAID용 ID로 변경
+# fdisk /dev/sda1
+→ t
+→ fd(linux raid auto)
+→ w
+
+
+■ RAID 생성 및 파일 시스템 생성
+1. RAID 생성
+- /dev/sda1이 Master raid가 되고, /dev/sda2가 Slave raid가 된다.
+- 설명의 편의상 RAID 1으로 묶어줄 장치 이름을 md0로 지정한다.
+# mdadm -C /dev/md0 -l 1 -n 2 /dev/sda1 /dev/sda2
+
+2. 파일 시스템 생성
+- RAID 파티션을 ext3 파일 시스템으로 생성한다.
+# mkfs -t ext3 /dev/md0
+
+
+■ RAID 파티션 마운트 및 정보 확인
+1. RAID 파티션 마운트
+- 생성된 RAID 파티션을 /raid라는 폴더에 마운트한다.
+# mkdir /raid
+# mount -t ext3 /dev/md0 /raid
+
+2. RAID 정보 확인
+- mdadm을 통해 RAID 정보를 확인할 수 있다.
+# mdadm -D /dev/md0
+- Linux 전체의 마운트 정보를 통해 확인할 수도 있다.
+# df -h
+
+
+■ RAID 파티션을 다시 묶고자 할 때
+1. RAID 파티션을 다시 묶고자 할 때
+- 두 개의 파티션에 서로 다른 내용이 존재한다면, Master raid의 내용이 Slave raid로 Mirroring된다.
+# mdadm -A /dev/md0 /dev/sda1 /dev/sda2
+# mount -t ext3 /dev/md0 /raid
+
+
+마지막으로 부팅시 자동으로 마운트가 이루어지도록 하기 위해서는 /etc/fstab에 등록하면 된다.
+하지만, 소프트웨어 RAID라서 그런지 /etc/fstab에 등록을 하여도 /dev/md0를 찾지 못해 마운트하지 못한다.
+실제로 부팅 후에 확인해보면 데이터는 모두 존재하나 RAID가 풀린 채 언마운트 되어 있다.
+이로 인해 번거롭게 부팅 후 RAID를 다시 묶고, 마운트하는 과정을 반복하고 있다.
